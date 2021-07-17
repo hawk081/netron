@@ -95,6 +95,9 @@ acuity.Graph = class {
                         const sizes = layer.parameters.size.split(' ');
                         shape = [0, parseInt(sizes[0]), parseInt(sizes[1]), layer.parameters.channels];
                     }
+                    if(shape) {
+                        shape = shape.map(x => x == 0 ? 1 : x);
+                    }
                 }
                 argument.shape = shape;
                 return argument;
@@ -621,7 +624,7 @@ acuity.Inference =  class {
             'a_times_b_plus_c', 'abs', 'cast', 'clipbyvalue', 'dequantize', 'dtype_converter',
             'elu', 'exp', 'floor', 'floor_div', 'hard_swish', 'leakyrelu', 'log', 'log_softmax',
             'neg', 'pow', 'prelu', 'quantize', 'relu', 'relu_keras', 'relun', 'rsqrt', 'sigmoid',
-            'sin', 'softmax', 'softrelu', 'sqrt', 'square', 'tanh'
+            'sin', 'softmax', 'softrelu', 'sqrt', 'square', 'tanh', 'layernormalize'
         ]);
         this._operators = new Map();
         this._operators.set('concat', (inputs, parameters) => {
@@ -658,6 +661,49 @@ acuity.Inference =  class {
                 const out_w = ~~((inputs[0][2] + parameters.stride_w - 1) / parameters.stride_w);
                 return [[inputs[0][0], out_h, out_w, inputs[0][3]]];
             }
+        });
+        this._operators.set('reshape', (inputs, parameters) => {
+            const negativeIndexs = [];
+            const newShape = parameters.shape.map((item, index) => {
+                if(item == 0) {
+                    return inputs[0][index];
+                }
+                else if(item == -1) {
+                    negativeIndexs.push(index);
+                    return 1;
+                }
+                else {
+                    return item;
+                }
+            });
+            if(negativeIndexs.length > 0) {
+                newShape[negativeIndexs[0]] = inputs[0].reduce((a, c) => a * c) / newShape.reduce((a, c) => a * c);
+            }
+            return [newShape];
+        });
+        this._operators.set('permute', (inputs, parameters) => {
+            const newShape = inputs[0].map((item, index) => {
+                return inputs[0][parameters.perm[index]];
+            });
+            return [newShape];
+        });
+        this._operators.set('matmul', (inputs, parameters) => {
+            const a = inputs[0];
+            const b = inputs[1];
+            let newShape = a.slice(0, -2);
+            if(parameters.transpose_a) {
+                newShape = newShape.concat(a.slice(-1));
+            }
+            else {
+                newShape = newShape.concat(a.slice(-2, -1));
+            }
+            if(parameters.transpose_b) {
+                newShape = newShape.concat(b.slice(-2, -1));
+            }
+            else {
+                newShape = newShape.concat(b.slice(-1));
+            }
+            return [newShape];
         });
         for (const layer of outputLayers) {
             for (const output of layer.outputs) {
