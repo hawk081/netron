@@ -458,11 +458,12 @@ acuity.Inference =  class {
             'squared_difference', 'subtract'
         ]);
         this._passthroughs = new Set([
-            'a_times_b_plus_c', 'abs', 'batchnormalize', 'cast', 'cast', 'clipbyvalue', 'dequantize',
-            'dtype_converter', 'elu', 'exp', 'floor', 'hard_swish', 'layernormalize', 'leakyrelu',
-            'log', 'log_softmax', 'mish', 'neg', 'pow', 'prelu', 'quantize', 'relu', 'relu_keras',
-            'relun', 'reverse', 'round', 'rsqrt', 'sigmoid', 'sin', 'softmax', 'softrelu', 'sqrt',
-            'square', 'tanh'
+            'LocalResponseNormalization', 'a_times_b_plus_c', 'abs', 'batchnorm_single', 'batchnormalize',
+            'cast', 'cast', 'clipbyvalue', 'dequantize', 'dtype_converter', 'elu', 'exp', 'floor',
+            'groupnormalize', 'hard_swish', 'instancenormalize', 'l2normalize', 'l2normalizescale',
+            'layernormalize', 'leakyrelu', 'log', 'log_softmax', 'mish', 'neg', 'norm_with_channel_mean',
+            'norm_with_min_max', 'norm_with_scale', 'pow', 'prelu', 'quantize', 'relu', 'relu_keras',
+            'relun', 'reverse', 'round', 'rsqrt', 'sigmoid', 'sin', 'softmax', 'softrelu', 'sqrt', 'square', 'tanh'
         ]);
         this._reduces = new Set([
             'reduceany', 'reducemax', 'reducemean', 'reducemin', 'reduceprod', 'reducesum'
@@ -630,6 +631,9 @@ acuity.Inference =  class {
                 newShape[negativeIndexs[0]] = inputs[0].reduce((a, c) => a * c) / newShape.reduce((a, c) => a * c);
             }
             return [newShape];
+        });
+        this._operators.set('sequence_mask', (inputs, parameters) => {
+            return [inputs[0].slice().concat([parameters.maxlen])];
         });
         this._operators.set('slice', (inputs, parameters) => {
             const newShape = parameters.size.map((item, index) => {
