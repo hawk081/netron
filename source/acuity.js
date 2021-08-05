@@ -460,7 +460,7 @@ acuity.Inference =  class {
         this._passthroughs = new Set([
             'LocalResponseNormalization', 'a_times_b_plus_c', 'abs', 'batchnorm_single', 'batchnormalize',
             'cast', 'cast', 'clipbyvalue', 'dequantize', 'dtype_converter', 'elu', 'exp', 'floor',
-            'groupnormalize', 'hard_swish', 'instancenormalize', 'l2normalize', 'l2normalizescale',
+            'groupnormalize', 'hard_sigmoid', 'hard_swish', 'instancenormalize', 'l2normalize', 'l2normalizescale',
             'layernormalize', 'leakyrelu', 'log', 'log_softmax', 'mish', 'neg', 'norm_with_channel_mean',
             'norm_with_min_max', 'norm_with_scale', 'pow', 'prelu', 'quantize', 'relu', 'relu_keras',
             'relun', 'reverse', 'round', 'rsqrt', 'sigmoid', 'sin', 'softmax', 'softrelu', 'sqrt', 'square', 'tanh'
@@ -503,8 +503,8 @@ acuity.Inference =  class {
         });
         this._operators.set('convolution', (inputs, parameters) => {
             if (parameters.padding == 'VALID') {
-                const out_h = ~~((inputs[0][1] + parameters.stride_h - parameters.ksize_h) / parameters.stride_h);
-                const out_w = ~~((inputs[0][2] + parameters.stride_w - parameters.ksize_w) / parameters.stride_w);
+                const out_h = ~~((inputs[0][1] + parameters.stride_h + parameters.pad[0] + parameters.pad[1] - parameters.ksize_h) / parameters.stride_h);
+                const out_w = ~~((inputs[0][2] + parameters.stride_w + parameters.pad[2] + parameters.pad[3]- parameters.ksize_w) / parameters.stride_w);
                 return [[inputs[0][0], out_h, out_w, parameters.weights]];
             }
             else if (parameters.padding == 'SAME') {
@@ -641,11 +641,36 @@ acuity.Inference =  class {
             });
             return [newShape];
         });
+        this._operators.set('squeeze', (inputs, parameters) => {
+            const newShape = inputs[0].slice();
+            const axis_list = [...new Set(parameters.axis_list)].sort((a, b) => b - a);
+            axis_list.map((item) => {
+                newShape.splice(item, 1);
+            });
+            return [newShape];
+        });
         this._operators.set('space2depth', (inputs, parameters) => {
             const h = inputs[0][1] / parameters.block_size[0];
             const w = inputs[0][2] / parameters.block_size[1];
             const c = inputs[0][3] * parameters.block_size[1] * parameters.block_size[1];
             return [[inputs[0][0], h, w, c]];
+        });
+        this._operators.set('split', (inputs, parameters) => {
+            const sizes = [];
+            const slices = parameters.slices.slice();
+            slices.splice(0, 0, 0);
+            slices.push(inputs[0][parameters.dim]);
+            slices.reduce((a, b) => {
+                sizes.push(b - a);
+                return b;
+            });
+            const newShapes = sizes.map((item) => {
+                const shape = inputs[0].slice();
+                shape[parameters.dim] = item;
+                return shape;
+            });
+
+            return newShapes;
         });
         this._operators.set('stack', (inputs, parameters) => {
             const newShape = inputs[0].slice();
