@@ -3,6 +3,8 @@
 
 var acuity = acuity || {};
 var json = json || require('./json');
+var jsyaml = jsyaml || require('./jsyaml');
+var python = python || require('./python');
 
 acuity.ModelFactory = class {
 
@@ -20,7 +22,11 @@ acuity.ModelFactory = class {
     open(context) {
         return acuity.Metadata.open(context).then((metadata) => {
             const obj = context.open('json');
-            return new acuity.Model(metadata, obj);
+            return acuity.Data.open(context, context.identifier.replace('.json', '.data')).then((data) => {
+                return acuity.Quantization.open(context, context.identifier.replace('.json', '.quantize')).then((quantization) => {
+                    return new acuity.Model(metadata, obj, data, quantization);
+                });
+            });
         });
     }
 };
@@ -53,14 +59,14 @@ acuity.Model = class {
 
 acuity.Graph = class {
 
-    constructor(metadata, model) {
+    constructor(metadata, model, modelData, quantization) {
         this._nodes = [];
         this._inputs = [];
         this._outputs = [];
         const args = new Map();
         const arg = (name) => {
             if (!args.has(name)) {
-                args.set(name, { name: name, shape: null });
+                args.set(name, { name: name, shape: null, quantization: null });
             }
             return args.get(name);
         };
@@ -120,6 +126,33 @@ acuity.Graph = class {
                 }
             }
         }
+
+        if(quantization) {
+            for (const key of Object.keys(quantization)) {
+                const parameters = quantization[key];
+                for (const tensorName of Object.keys(parameters)) {
+                    if (args.has(tensorName)) {
+                        const arg = args.get(tensorName);
+                        arg.quantization = new acuity.Quantization(parameters[tensorName]);
+                        arg.type.dataType = arg.quantization.dataType;
+                    }
+                }
+            }
+        }
+
+        if (modelData) {
+            for (const layerName of modelData.keys()) {
+                for (const tensorName of modelData.get(layerName).keys()) {
+                    const tensor = modelData.get(layerName).get(tensorName);
+                    const tensorUrl = acuity.Utility.getTensorUrl(layerName, tensorName);
+                    if (args.has(tensorUrl)) {
+                        const arg = args.get(tensorUrl);
+                        arg.type.shape.dimensions = tensor.shape;
+                        arg.initializer = new acuity.Tensor(arg.type, arg.quantization, tensor.data);
+                    }
+                }
+            }
+        }
     }
 
     get inputs() {
@@ -161,10 +194,11 @@ acuity.Node = class {
 
         if (this._type && this._type.constants) {
             for (const constant of this._type.constants) {
-                // const name = "@" + this._name + ":" + constant.name;
+                const tensorUrl = "@" + this._name + ":" + constant.name;
                 const type = new acuity.TensorType(null, new acuity.TensorShape(null));
-                const argument = new acuity.Argument('', type, null, new acuity.Tensor(type));
+                const argument = new acuity.Argument(tensorUrl, type, null, new acuity.Tensor(type));
                 this._inputs.push(new acuity.Parameter(constant.name, true, [ argument ]));
+                args.set(tensorUrl, argument);
             }
         }
 
@@ -207,7 +241,7 @@ acuity.Attribute = class {
             this._type = metadata.type || null;
             if (Object.prototype.hasOwnProperty.call(metadata, 'default')) {
                 if (metadata.default === value) {
-                    this._visible = false;
+                    this._value += ' (default)';
                 }
             }
         }
@@ -294,7 +328,7 @@ acuity.Argument = class {
 acuity.TensorType = class {
 
     constructor(dataType, shape) {
-        this._dataType = dataType || '?';
+        this._dataType = dataType || 'float32';
         this._shape = shape;
     }
 
@@ -327,14 +361,17 @@ acuity.TensorShape = class {
 
     get dimensions() {
         if (Array.isArray(this._dimensions) && this._dimensions.length == 1 && this._dimensions[0] == 0) {
-            return [];
+            return ['scalar'];
         }
         return this._dimensions;
     }
 
+    set dimensions(dimensions) {
+        this._dimensions = dimensions;
+    }
     toString() {
         if (!Array.isArray(this._dimensions) || this._dimensions.length == 0 || (this._dimensions.length == 1 && this._dimensions[0] == 0)) {
-            return '';
+            return 'scalar';
         }
         return '[' + this._dimensions.map((dimension) => dimension.toString()).join(',') + ']';
     }
@@ -342,8 +379,10 @@ acuity.TensorShape = class {
 
 acuity.Tensor = class {
 
-    constructor(type) {
+    constructor(type, quantization, data) {
         this._type = type;
+        this._quantization = quantization || null;
+        this._data = data || null;
     }
 
     get kind() {
@@ -355,11 +394,153 @@ acuity.Tensor = class {
     }
 
     get state() {
-        return 'Not supported.';
+        return this._context().state;
+    }
+
+    get value() {
+        const context = this._context();
+        if (context.state) {
+            return null;
+        }
+        context.limit = Number.MAX_SAFE_INTEGER;
+        return this._decode(context, 0);
     }
 
     toString() {
-        return '';
+        const context = this._context();
+        if (context.state) {
+            return '';
+        }
+        context.limit = 10000;
+        const value = this._decode(context, 0);
+        return JSON.stringify(value, null, 4);
+    }
+
+    _context() {
+        const context = {};
+        context.state = null;
+        context.index = 0;
+        context.count = 0;
+
+        if (this._data == null) {
+            context.state = 'Tensor data is empty.';
+            return context;
+        }
+
+        context.dataType = this._type.dataType;
+        context.shape = this._type.shape.dimensions;
+        context.data = new DataView(this._data.buffer, this._data.byteOffset, this._data.byteLength);
+
+        if (this._quantization) {
+            const elementCount = context.shape.reduce((a, c) => a * c);
+            const dataTypeBytes = acuity.Utility.dataTypeBytes(this._quantization.dataType);
+            this._quantizedData = new ArrayBuffer(elementCount * dataTypeBytes);
+            const dataView = new DataView(this._quantizedData);
+            for (let i = 0; i < elementCount; i++) {
+                const floatValue = context.data.getFloat32(i * 4, true);
+                const quantizedValue = this._quantization.quantize(floatValue);
+                switch (this._quantization.dataType) {
+                    case 'uint8':
+                        dataView.setUint8(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    case 'int8':
+                        dataView.setInt8(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    case 'uint16':
+                        dataView.setUint16(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    case 'int16':
+                        dataView.setInt16(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    case 'int32':
+                        dataView.setInt32(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    case 'uint32':
+                        dataView.setUint32(i * dataTypeBytes, quantizedValue, true);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            context.data = dataView;
+        }
+
+        return context;
+    }
+
+    _decode(context, dimension) {
+        const shape = (context.shape.length == 0) ? [ 1 ] : context.shape;
+        const size = shape[dimension];
+        const results = [];
+        if (dimension == shape.length - 1) {
+            for (let i = 0; i < size; i++) {
+                if (context.count > context.limit) {
+                    results.push('...');
+                    return results;
+                }
+                switch (context.dataType) {
+                    case 'uint8':
+                        results.push(context.data.getUint8(context.index));
+                        context.index += 1;
+                        context.count++;
+                        break;
+                    case 'int8':
+                        results.push(context.data.getInt8(context.index));
+                        context.index += 1;
+                        context.count++;
+                        break;
+                    case 'int16':
+                        results.push(context.data.getInt16(context.index));
+                        context.index += 2;
+                        context.count++;
+                        break;
+                    case 'int32':
+                        results.push(context.data.getInt32(context.index, true));
+                        context.index += 4;
+                        context.count++;
+                        break;
+                    case 'int64':
+                        results.push(context.data.getInt64(context.index, true));
+                        context.index += 8;
+                        context.count++;
+                        break;
+                    case 'float16':
+                        results.push(context.data.getFloat16(context.index, true));
+                        context.index += 2;
+                        context.count++;
+                        break;
+                    case 'float32':
+                        results.push(context.data.getFloat32(context.index, true));
+                        context.index += 4;
+                        context.count++;
+                        break;
+                    case 'float64':
+                        results.push(context.data.getFloat64(context.index, true));
+                        context.index += 8;
+                        context.count++;
+                        break;
+                    case 'string':
+                        results.push(context.data[context.index++]);
+                        context.count++;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        else {
+            for (let j = 0; j < size; j++) {
+                if (context.count > context.limit) {
+                    results.push('...');
+                    return results;
+                }
+                results.push(this._decode(context, dimension + 1));
+            }
+        }
+        if (context.shape.length == 0) {
+            return results[0];
+        }
+        return results;
     }
 };
 
@@ -780,6 +961,161 @@ acuity.Inference =  class {
                     }
                 }
             }
+        }
+    }
+};
+
+acuity.Data = class {
+    static open(context, dataFileName) {
+        return context.request(dataFileName).then((data) => {
+            return context.require('./numpy').then((numpy) => {
+                const array = new numpy.Array(data.peek());
+
+                const unpickler = python.Unpickler.open(array.data);
+                const execution = new python.Execution();
+                const views = unpickler.load((name, args) => execution.invoke(name, args), null);
+
+                acuity.Data._data = views.data[0];
+                return acuity.Data._data;
+            });
+
+        }).catch(() => {
+            acuity.Data._data = null;
+            return acuity.Data._data;
+        });
+    }
+};
+
+acuity.Quantization = class {
+
+    static open(context, dataFileName) {
+        return context.request(dataFileName).then((data) => {
+            return jsyaml.safeLoad(data.peek());
+        }).catch(() => {
+            return null;
+        });
+    }
+
+    constructor(quantization) {
+        this._quantization = quantization;
+        this._doQuantize = function(quantization) {
+            const range = acuity.Utility.rangeOfDataType(quantization.qtype);
+            const limiter = function(value) {
+                return Math.min(Math.max(value, range.min), range.max);
+            };
+            return function(value) {
+                switch (quantization.dtype) {
+                    case 'asymmetric_affine':
+                        return limiter(Math.round(value / quantization.scale[0]) +
+                            quantization.zero_point[0]);
+                    default:
+                        throw new acuity.Error("Unsupported qtype '" + quantization.dtype + "'");
+                }
+            };
+        }(this._quantization);
+    }
+
+    get quantization() {
+        return this._quantization;
+    }
+
+    get dataType() {
+        return acuity.Utility.unifyDataType(this._quantization.qtype);
+    }
+
+    quantize(floatValue) {
+        return this._doQuantize(floatValue);
+    }
+
+    toString() {
+        if (this._quantization) {
+            switch (this._quantization.dtype) {
+                case "asymmetric_affine": {
+                    let value = 'q';
+                    const scale = (this._quantization.scale.length == 1) ? this._quantization.scale[0] : 0;
+                    const zeroPoint = (this._quantization.zero_point.length == 1) ? this._quantization.zero_point[0] : 0;
+                    if (scale != 0 || zeroPoint != 0) {
+                        value = scale.toString() + ' * ' + (zeroPoint == 0 ? 'q' : ('(q - ' + zeroPoint.toString() + ')'));
+                    }
+                    if (this._quantization.min_value && this._quantization.min_value.length == 1) {
+                        value = this._quantization.min_value[0].toString() + ' \u2264 ' + value;
+                    }
+                    if (this._quantization.max_value && this._quantization.max_value.length == 1) {
+                        value = value + ' \u2264 ' + this._quantization.max_value[0].toString();
+                    }
+                    if (value != 'q') {
+                        return value;
+                    }
+                    break;
+                }
+            }
+        }
+
+        return null;
+    }
+};
+
+acuity.Utility = class {
+
+    static getTensorUrl(layerName, port) {
+        return "@" + layerName + ":" + port;
+    }
+
+    static parseTensorUrl(tensorUrl) {
+        const parts = tensorUrl.split(':');
+        const layerName = parts[0].split('@')[1];
+        return { 'layerName': layerName, 'port': parts[1]};
+    }
+
+    static dataTypeBytes(dataType) {
+        switch (acuity.Utility.unifyDataType(dataType)) {
+            case 'uint8':
+            case 'int8':
+                return 1;
+            case 'uint16':
+            case 'int16':
+            case 'float16':
+                return 2;
+            case 'uint32':
+            case 'int32':
+            case 'float32':
+                return 4;
+            case 'uint64':
+            case 'int64':
+            case 'float64':
+                return 8;
+            default:
+                break;
+        }
+        return 0;
+    }
+
+    static unifyDataType(dataType) {
+        const dataTypeMap = new Map([
+            ['u8', 'uint8'], ['uint8', 'uint8'], ['i8', 'int8'], ['int8', 'int8'],
+            ['u16', 'uint16'], ['u16', 'uint16'], ['i16', 'int16'], ['int16', 'int16'],
+            ['u32', 'uint32'], ['u32', 'uint32'], ['i32', 'int32'], ['int32', 'int32'],
+            ['u64', 'uint64'], ['u64', 'uint64'], ['i64', 'int64'], ['int64', 'int64'],
+            ['f16', 'float16'], ['fp16', 'float16'],
+            ['f32', 'float32'], ['fp32', 'float32'],
+            ['f64', 'float64'], ['fp64', 'float64']
+        ]);
+        if (dataTypeMap.has(dataType)) {
+            return dataTypeMap.get(dataType);
+        }
+        else {
+            throw new acuity.Error("Unsupported dataType '" + dataType + "'");
+        }
+    }
+
+    static rangeOfDataType(dataType) {
+        const unifiedDataType = acuity.Utility.unifyDataType(dataType);
+        const bits = 8 * acuity.Utility.dataTypeBytes(unifiedDataType);
+        if (unifiedDataType.startsWith('u')) {
+            return { min: 0, max: Math.pow(2, bits) - 1};
+        }
+        else {
+            return { min: -Math.pow(2, bits - 1), max: Math.pow(2, bits - 1) - 1};
         }
     }
 };
