@@ -148,8 +148,17 @@ acuity.Graph = class {
                     if (args.has(tensorUrl)) {
                         const arg = args.get(tensorUrl);
                         arg.type.shape.dimensions = tensor.shape;
-                        arg.initializer = new acuity.Tensor(arg.type, arg.quantization, tensor.data);
+                        if (!arg.quantization) {
+                            arg.type.dataType = tensor.dtype.name;
+                        }
+                        arg.initializer = new acuity.Tensor(arg.type, arg.quantization, tensor);
                     }
+                }
+            }
+
+            for (const node of this._nodes) {
+                if (node.type.name == 'variable') {
+                    node.outputs[0].arguments[0].type.dataType = node.inputs[0].arguments[0].type.dataType;
                 }
             }
         }
@@ -369,6 +378,7 @@ acuity.TensorShape = class {
     set dimensions(dimensions) {
         this._dimensions = dimensions;
     }
+
     toString() {
         if (!Array.isArray(this._dimensions) || this._dimensions.length == 0 || (this._dimensions.length == 1 && this._dimensions[0] == 0)) {
             return 'scalar';
@@ -429,7 +439,8 @@ acuity.Tensor = class {
 
         context.dataType = this._type.dataType;
         context.shape = this._type.shape.dimensions;
-        context.data = new DataView(this._data.buffer, this._data.byteOffset, this._data.byteLength);
+        context.data = new DataView(this._data.data.buffer, this._data.data.byteOffset, this._data.data.byteLength);
+        context.rawDataType = this._data.dtype.name;
 
         if (this._quantization) {
             const elementCount = context.shape.reduce((a, c) => a * c);
@@ -463,6 +474,8 @@ acuity.Tensor = class {
                 }
             }
             context.data = dataView;
+        } else {
+            context.dataType = context.rawDataType;
         }
 
         return context;
