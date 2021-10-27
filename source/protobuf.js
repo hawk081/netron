@@ -68,6 +68,9 @@ protobuf.BinaryReader = class {
                 if (length === undefined) {
                     return undefined;
                 }
+                if (length === 0) {
+                    // return 2;
+                }
                 const end = this.position + length;
                 if (end > max) {
                     return undefined;
@@ -606,11 +609,14 @@ protobuf.TextReader = class {
         let first = true;
         for (let i = 0; i < 0x100; i++) {
             const c = decoder.decode();
-            if (c === undefined || c === '\0') {
+            if (c === undefined) {
                 if (i === 0) {
                     return null;
                 }
                 break;
+            }
+            if (c === '\0') {
+                return null;
             }
             const whitespace = c === ' ' || c === '\n' || c === '\r' || c === '\t';
             if (c < ' ' && !whitespace) {
@@ -762,23 +768,23 @@ protobuf.TextReader = class {
     }
 
     int64() {
-        return new base.Int64(this.integer(), 0);
+        return base.Int64.create(this.integer());
     }
 
     uint64() {
-        return new base.Uint64(this.integer(), 0);
+        return base.Uint64.create(this.integer());
     }
 
     sint64() {
-        return new base.Int64(this.integer(), 0);
+        return base.Int64.create(this.integer());
     }
 
     fixed64() {
-        return new base.Uint64(this.integer(), 0);
+        return base.Uint64.create(this.integer());
     }
 
     sfixed64() {
-        return new base.Int64(this.integer(), 0);
+        return base.Int64.create(this.integer());
     }
 
     fixed32() {

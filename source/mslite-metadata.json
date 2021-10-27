@@ -1368,7 +1368,8 @@
     ]
   },
   {
-    "name": "Identity"
+    "name": "Identity",
+    "category": "Control"
   },
   {
     "name": "If"
@@ -2776,6 +2777,9 @@
   },
   {
     "name": "Switch"
+  },
+  {
+    "name": "SwitchLayer"
   },
   {
     "name": "Tan",

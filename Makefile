@@ -27,6 +27,7 @@ update: install
 	@./tools/mnn sync schema
 	@./tools/mslite sync schema metadata
 	@./tools/onnx sync install schema metadata
+	@./tools/om sync schema
 	@./tools/paddle sync schema
 	@./tools/pytorch sync install schema metadata
 	@./tools/sklearn sync install metadata
@@ -36,7 +37,7 @@ update: install
 
 build_python: install
 	python -m pip install --user wheel
-	python ./setup.py build --version bdist_wheel
+	python ./publish/setup.py build --version bdist_wheel
 
 install_python: build_python
 	pip install --force-reinstall --quiet dist/dist/*.whl
@@ -84,7 +85,6 @@ build_web:
 	cp -R ./source/*.ico ./dist/web
 	cp -R ./source/*.png ./dist/web
 	rm -rf ./dist/web/electron.* ./dist/web/app.js
-	cp -R ./node_modules/dagre/dist/dagre.js ./dist/web
 	sed -i "s/0\.0\.0/$$(grep '"version":' package.json -m1 | cut -d\" -f4)/g" ./dist/web/index.html
 
 publish_web: build_web

@@ -205,7 +205,7 @@ $root.mindspore.schema.PrimitiveType = class {
             case 29: return $root.mindspore.schema.Ceil.decode(reader, position);
             case 30: return $root.mindspore.schema.Clip.decode(reader, position);
             case 31: return $root.mindspore.schema.Concat.decode(reader, position);
-            case 32: return $root.mindspore.schema.ControlDepend.decode(reader, position);
+            case 32: return $root.mindspore.schema.Attention.decode(reader, position);
             case 33: return $root.mindspore.schema.Conv2DBackpropFilterFusion.decode(reader, position);
             case 34: return $root.mindspore.schema.Conv2DBackpropInputFusion.decode(reader, position);
             case 35: return $root.mindspore.schema.Conv2DFusion.decode(reader, position);
@@ -267,7 +267,7 @@ $root.mindspore.schema.PrimitiveType = class {
             case 91: return $root.mindspore.schema.MaximumGrad.decode(reader, position);
             case 92: return $root.mindspore.schema.MaxPoolFusion.decode(reader, position);
             case 93: return $root.mindspore.schema.MaxPoolGrad.decode(reader, position);
-            case 94: return $root.mindspore.schema.Merge.decode(reader, position);
+            case 94: return $root.mindspore.schema.SwitchLayer.decode(reader, position);
             case 95: return $root.mindspore.schema.Mfcc.decode(reader, position);
             case 96: return $root.mindspore.schema.Minimum.decode(reader, position);
             case 97: return $root.mindspore.schema.MinimumGrad.decode(reader, position);
@@ -340,11 +340,11 @@ $root.mindspore.schema.PrimitiveType = class {
             case 164: return $root.mindspore.schema.UnsortedSegmentSum.decode(reader, position);
             case 165: return $root.mindspore.schema.Unsqueeze.decode(reader, position);
             case 166: return $root.mindspore.schema.Unstack.decode(reader, position);
-            case 167: return $root.mindspore.schema.While.decode(reader, position);
+            case 167: return $root.mindspore.schema.LSTMGrad.decode(reader, position);
             case 168: return $root.mindspore.schema.Where.decode(reader, position);
             case 169: return $root.mindspore.schema.ZerosLike.decode(reader, position);
             case 170: return $root.mindspore.schema.Select.decode(reader, position);
-            case 171: return $root.mindspore.schema.If.decode(reader, position);
+            case 171: return $root.mindspore.schema.ScatterNdUpdate.decode(reader, position);
             case 172: return $root.mindspore.schema.GRU.decode(reader, position);
             case 173: return $root.mindspore.schema.NonZero.decode(reader, position);
             case 174: return $root.mindspore.schema.InvertPermutation.decode(reader, position);
@@ -374,9 +374,6 @@ $root.mindspore.schema.PrimitiveType = class {
             case 198: return $root.mindspore.schema.TensorArrayRead.decode(reader, position);
             case 199: return $root.mindspore.schema.TensorArrayWrite.decode(reader, position);
             case 200: return $root.mindspore.schema.Affine.decode(reader, position);
-            case 201: return $root.mindspore.schema.Attention.decode(reader, position);
-            case 202: return $root.mindspore.schema.LSTMGrad.decode(reader, position);
-            case 203: return $root.mindspore.schema.ScatterNdUpdate.decode(reader, position);
         }
         return undefined;
     }
@@ -414,7 +411,7 @@ $root.mindspore.schema.PrimitiveType = class {
             case 'Ceil': return $root.mindspore.schema.Ceil.decodeText(reader, json);
             case 'Clip': return $root.mindspore.schema.Clip.decodeText(reader, json);
             case 'Concat': return $root.mindspore.schema.Concat.decodeText(reader, json);
-            case 'ControlDepend': return $root.mindspore.schema.ControlDepend.decodeText(reader, json);
+            case 'Attention': return $root.mindspore.schema.Attention.decodeText(reader, json);
             case 'Conv2DBackpropFilterFusion': return $root.mindspore.schema.Conv2DBackpropFilterFusion.decodeText(reader, json);
             case 'Conv2DBackpropInputFusion': return $root.mindspore.schema.Conv2DBackpropInputFusion.decodeText(reader, json);
             case 'Conv2DFusion': return $root.mindspore.schema.Conv2DFusion.decodeText(reader, json);
@@ -476,7 +473,7 @@ $root.mindspore.schema.PrimitiveType = class {
             case 'MaximumGrad': return $root.mindspore.schema.MaximumGrad.decodeText(reader, json);
             case 'MaxPoolFusion': return $root.mindspore.schema.MaxPoolFusion.decodeText(reader, json);
             case 'MaxPoolGrad': return $root.mindspore.schema.MaxPoolGrad.decodeText(reader, json);
-            case 'Merge': return $root.mindspore.schema.Merge.decodeText(reader, json);
+            case 'SwitchLayer': return $root.mindspore.schema.SwitchLayer.decodeText(reader, json);
             case 'Mfcc': return $root.mindspore.schema.Mfcc.decodeText(reader, json);
             case 'Minimum': return $root.mindspore.schema.Minimum.decodeText(reader, json);
             case 'MinimumGrad': return $root.mindspore.schema.MinimumGrad.decodeText(reader, json);
@@ -549,11 +546,11 @@ $root.mindspore.schema.PrimitiveType = class {
             case 'UnsortedSegmentSum': return $root.mindspore.schema.UnsortedSegmentSum.decodeText(reader, json);
             case 'Unsqueeze': return $root.mindspore.schema.Unsqueeze.decodeText(reader, json);
             case 'Unstack': return $root.mindspore.schema.Unstack.decodeText(reader, json);
-            case 'While': return $root.mindspore.schema.While.decodeText(reader, json);
+            case 'LSTMGrad': return $root.mindspore.schema.LSTMGrad.decodeText(reader, json);
             case 'Where': return $root.mindspore.schema.Where.decodeText(reader, json);
             case 'ZerosLike': return $root.mindspore.schema.ZerosLike.decodeText(reader, json);
             case 'Select': return $root.mindspore.schema.Select.decodeText(reader, json);
-            case 'If': return $root.mindspore.schema.If.decodeText(reader, json);
+            case 'ScatterNdUpdate': return $root.mindspore.schema.ScatterNdUpdate.decodeText(reader, json);
             case 'GRU': return $root.mindspore.schema.GRU.decodeText(reader, json);
             case 'NonZero': return $root.mindspore.schema.NonZero.decodeText(reader, json);
             case 'InvertPermutation': return $root.mindspore.schema.InvertPermutation.decodeText(reader, json);
@@ -583,9 +580,6 @@ $root.mindspore.schema.PrimitiveType = class {
             case 'TensorArrayRead': return $root.mindspore.schema.TensorArrayRead.decodeText(reader, json);
             case 'TensorArrayWrite': return $root.mindspore.schema.TensorArrayWrite.decodeText(reader, json);
             case 'Affine': return $root.mindspore.schema.Affine.decodeText(reader, json);
-            case 'Attention': return $root.mindspore.schema.Attention.decodeText(reader, json);
-            case 'LSTMGrad': return $root.mindspore.schema.LSTMGrad.decodeText(reader, json);
-            case 'ScatterNdUpdate': return $root.mindspore.schema.ScatterNdUpdate.decodeText(reader, json);
         }
         return undefined;
     }
@@ -1120,17 +1114,15 @@ $root.mindspore.schema.Concat = class Concat {
     }
 };
 
-$root.mindspore.schema.ControlDepend = class ControlDepend {
+$root.mindspore.schema.Attention = class Attention {
 
-    static decode(reader, position) {
-        const $ = new $root.mindspore.schema.ControlDepend();
-        $.depend_mode = reader.int64_(position, 4, 0);
+    static decode(/* reader, position */) {
+        const $ = new $root.mindspore.schema.Attention();
         return $;
     }
 
-    static decodeText(reader, json) {
-        const $ = new $root.mindspore.schema.ControlDepend();
-        $.depend_mode = reader.value(json.depend_mode, 0);
+    static decodeText(/* reader, json */) {
+        const $ = new $root.mindspore.schema.Attention();
         return $;
     }
 };
@@ -2235,15 +2227,15 @@ $root.mindspore.schema.MaxPoolGrad = class MaxPoolGrad {
     }
 };
 
-$root.mindspore.schema.Merge = class Merge {
+$root.mindspore.schema.SwitchLayer = class SwitchLayer {
 
     static decode(/* reader, position */) {
-        const $ = new $root.mindspore.schema.Merge();
+        const $ = new $root.mindspore.schema.SwitchLayer();
         return $;
     }
 
     static decodeText(/* reader, json */) {
-        const $ = new $root.mindspore.schema.Merge();
+        const $ = new $root.mindspore.schema.SwitchLayer();
         return $;
     }
 };
@@ -3386,23 +3378,6 @@ $root.mindspore.schema.Unstack = class Unstack {
     }
 };
 
-$root.mindspore.schema.While = class While {
-
-    static decode(reader, position) {
-        const $ = new $root.mindspore.schema.While();
-        $.cond_subgraph_index = reader.int64_(position, 4, 0);
-        $.body_subgraph_index = reader.int64_(position, 6, 0);
-        return $;
-    }
-
-    static decodeText(reader, json) {
-        const $ = new $root.mindspore.schema.While();
-        $.cond_subgraph_index = reader.value(json.cond_subgraph_index, 0);
-        $.body_subgraph_index = reader.value(json.body_subgraph_index, 0);
-        return $;
-    }
-};
-
 $root.mindspore.schema.Where = class Where {
 
     static decode(/* reader, position */) {
@@ -3438,19 +3413,6 @@ $root.mindspore.schema.Select = class Select {
 
     static decodeText(/* reader, json */) {
         const $ = new $root.mindspore.schema.Select();
-        return $;
-    }
-};
-
-$root.mindspore.schema.If = class If {
-
-    static decode(/* reader, position */) {
-        const $ = new $root.mindspore.schema.If();
-        return $;
-    }
-
-    static decodeText(/* reader, json */) {
-        const $ = new $root.mindspore.schema.If();
         return $;
     }
 };
@@ -3974,19 +3936,6 @@ $root.mindspore.schema.Affine = class Affine {
     }
 };
 
-$root.mindspore.schema.Attention = class Attention {
-
-    static decode(/* reader, position */) {
-        const $ = new $root.mindspore.schema.Attention();
-        return $;
-    }
-
-    static decodeText(/* reader, json */) {
-        const $ = new $root.mindspore.schema.Attention();
-        return $;
-    }
-};
-
 $root.mindspore.schema.ScatterNdUpdate = class ScatterNdUpdate {
 
     static decode(/* reader, position */) {
@@ -4044,6 +3993,27 @@ $root.mindspore.schema.WeightQunatCompressType = {
     FSE: 3
 };
 
+$root.mindspore.schema.ExternalData = class ExternalData {
+
+    static decode(reader, position) {
+        const $ = new $root.mindspore.schema.ExternalData();
+        $.location = reader.string_(position, 4, null);
+        $.offset = reader.int64_(position, 6, 0);
+        $.length = reader.int64_(position, 8, -1);
+        $.checkSum = reader.string_(position, 10, null);
+        return $;
+    }
+
+    static decodeText(reader, json) {
+        const $ = new $root.mindspore.schema.ExternalData();
+        $.location = reader.value(json.location, null);
+        $.offset = reader.value(json.offset, 0);
+        $.length = reader.value(json.length, -1);
+        $.checkSum = reader.value(json.checkSum, null);
+        return $;
+    }
+};
+
 $root.mindspore.schema.Tensor = class Tensor {
 
     static decode(reader, position) {
@@ -4060,6 +4030,7 @@ $root.mindspore.schema.Tensor = class Tensor {
         $.name = reader.string_(position, 22, null);
         $.enableHuffmanCode = reader.bool_(position, 24, false);
         $.weightQunatCompressType = reader.int32_(position, 26, 0);
+        $.externalData = reader.tableArray(position, 28, $root.mindspore.schema.ExternalData.decode);
         return $;
     }
 
@@ -4077,6 +4048,7 @@ $root.mindspore.schema.Tensor = class Tensor {
         $.name = reader.value(json.name, null);
         $.enableHuffmanCode = reader.value(json.enableHuffmanCode, false);
         $.weightQunatCompressType = $root.mindspore.schema.WeightQunatCompressType[json.weightQunatCompressType];
+        $.externalData = reader.objectArray(json.externalData, $root.mindspore.schema.ExternalData.decodeText);
         return $;
     }
 };

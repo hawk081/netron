@@ -7,13 +7,30 @@ var protobuf = protobuf || require('./protobuf');
 coreml.ModelFactory = class {
 
     match(context) {
-        const tags = context.tags('pb');
-        if (tags.get(1) === 0 && tags.get(2) === 2) {
-            return 'coreml.pb';
-        }
         const stream = context.stream;
         const identifier = context.identifier.toLowerCase();
         const extension = identifier.split('.').pop().toLowerCase();
+        const tags = context.tags('pb');
+        if (tags.get(1) === 0 && tags.get(2) === 2) {
+            if (extension === 'pb') {
+                const tags = context.tags('pb+');
+                const keys = Object.keys(tags).map((key) => parseInt(key, 10));
+                const match = (key) =>
+                    (key >= 200 && key < 220) ||
+                    (key >= 300 && key < 320) ||
+                    (key >= 400 && key < 420) ||
+                    (key >= 500 && key < 520) ||
+                    (key >= 550 && key < 560) ||
+                    (key >= 600 && key < 620) ||
+                    (key === 900) ||
+                    (key >= 2000 && key < 2010) ||
+                    (key === 3000);
+                if (!keys.some((key) => match(key))) {
+                    return null;
+                }
+            }
+            return 'coreml.pb';
+        }
         switch (identifier) {
             case 'manifest.json': {
                 const obj = context.open('json');
@@ -68,13 +85,13 @@ coreml.ModelFactory = class {
                     }
                     const weightPaths = new Set();
                     const walkProgram = (program) => {
-                        for (const pair of Object.entries(program.functions)) {
-                            const func = pair[1];
-                            for (const pair of Object.entries(func.block_specializations)) {
-                                const block = pair[1];
+                        for (const entry of Object.entries(program.functions)) {
+                            const func = entry[1];
+                            for (const entry of Object.entries(func.block_specializations)) {
+                                const block = entry[1];
                                 for (const operation of block.operations) {
-                                    for (const pair of Object.entries(operation.attributes)) {
-                                        const value = pair[1];
+                                    for (const entry of Object.entries(operation.attributes)) {
+                                        const value = entry[1];
                                         if (value.blobFileValue && value.blobFileValue.fileName) {
                                             weightPaths.add(value.blobFileValue.fileName);
                                         }
@@ -616,13 +633,16 @@ coreml.Graph = class {
                         case 'floats':
                             values = tensor.floats.values;
                             break;
+                        case 'bytes':
+                            values = tensor.bytes.values;
+                            break;
                         default:
                             throw new coreml.Error("Unsupported tensor value '" + tensor.value + "'.");
                     }
                     return values;
                 }
                 case 'blobFileValue': {
-                    const type = coreml.Utility.type(value.type);
+                    const type = coreml.Utility.valueType(value.type);
                     const blob = value.blobFileValue;
                     const offset = blob.offset.toNumber();
                     const file = blob.fileName;
@@ -642,6 +662,10 @@ coreml.Graph = class {
                                 case 'float32': {
                                     const buffer = stream.read(size);
                                     data = new Float32Array(buffer.buffer, buffer.byteOffset, length).slice();
+                                    break;
+                                }
+                                case 'float16': {
+                                    data = stream.read(size);
                                     break;
                                 }
                                 default:
@@ -668,11 +692,14 @@ coreml.Graph = class {
                 type: op.type,
                 attributes: {}
             };
-            for (const key of Object.keys(op.attributes)) {
-                operation.attributes[key] = convertValue(op.attributes[key]);
+            for (const entry of Object.entries(op.attributes)) {
+                const key = entry[0];
+                const value = entry[1];
+                operation.attributes[key] = convertValue(value);
             }
-            operation.inputs = Object.keys(op.inputs).map((key) => {
-                const input = op.inputs[key];
+            operation.inputs = Object.entries(op.inputs).map((entry) => {
+                const key = entry[0];
+                const input = entry[1];
                 const args = input.arguments.map((argument) => {
                     if (argument.name) {
                         const value = arg(argument.name);
@@ -688,7 +715,7 @@ coreml.Graph = class {
             });
             operation.outputs = op.outputs.map((output) => {
                 const value = arg(output.name);
-                value.type = coreml.Utility.type(output.type);
+                value.type = coreml.Utility.valueType(output.type);
                 value.from.push(operation);
                 return {
                     name: 'output',
@@ -703,8 +730,34 @@ coreml.Graph = class {
                 op.outputs.length === 1 && op.outputs[0].arguments.length === 1) {
                 const argument = op.outputs[0].arguments[0];
                 if (op.attributes && op.attributes.val) {
-                    argument.value = op.attributes.val;
+                    const type = argument.type;
+                    const data = op.attributes.val;
+                    if (data instanceof Uint8Array && data.length === 2 &&
+                        type.dataType === 'float16' && type.shape.dimensions.length === 0) {
+                        const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+                        argument.value = view.getFloat16(0, true);
+                    }
+                    else {
+                        argument.value = data;
+                    }
+                    argument.const = true;
                     op.delete = true;
+                }
+            }
+        }
+
+        for (const op of operations) {
+            for (const input of op.inputs) {
+                if (input.arguments.length > 1 && input.arguments.some((argument) => argument.const)) {
+                    if (input.arguments.every((argument) => argument.value instanceof coreml.Tensor)) {
+                        continue;
+                    }
+                    for (const argument of input.arguments) {
+                        for (const from of argument.from) {
+                            from.delete = false;
+                        }
+                        delete argument.value;
+                    }
                 }
             }
         }
@@ -714,14 +767,15 @@ coreml.Graph = class {
                 continue;
             }
             op.inputs = op.inputs.filter((input) => {
-                if (input.arguments.length !== 1) {
+                if (input.arguments.every((argument) => argument.value === undefined || argument.value instanceof coreml.Tensor)) {
                     return true;
                 }
-                const argument = input.arguments[0];
-                if (argument.value === undefined || argument.value instanceof coreml.Tensor) {
-                    return true;
+                if (input.arguments.length === 1) {
+                    const argument = input.arguments[0];
+                    op.attributes[input.name] = argument.value;
+                    return false;
                 }
-                op.attributes[input.name] = argument.value;
+                op.attributes[input.name] = input.arguments.map((argument) => argument.value[0]);
                 return false;
             });
         }
@@ -1091,24 +1145,27 @@ coreml.Node = class {
 
 coreml.Attribute = class {
 
-    constructor(schema, name, value) {
+    constructor(metadata, name, value) {
         this._name = name;
         this._value = value;
-        if (schema) {
-            if (schema.type) {
-                this._type = schema.type;
+        if (this._value instanceof coreml.Tensor) {
+            this._type = 'tensor';
+        }
+        if (metadata) {
+            if (metadata.type) {
+                this._type = metadata.type;
             }
             if (this._type && coreml.proto) {
                 this._value = coreml.Utility.enum(this._type, this._value);
             }
-            if (Object.prototype.hasOwnProperty.call(schema, 'visible') && !schema.visible) {
+            if (Object.prototype.hasOwnProperty.call(metadata, 'visible') && !metadata.visible) {
                 this._visible = false;
             }
-            else if (Object.prototype.hasOwnProperty.call(schema, 'default')) {
+            else if (Object.prototype.hasOwnProperty.call(metadata, 'default')) {
                 if (Array.isArray(value)) {
                     value = value.map((item) => item.toNumber());
                 }
-                if (JSON.stringify(schema.default) == JSON.stringify(value)) {
+                if (JSON.stringify(metadata.default) == JSON.stringify(value)) {
                     this._visible = false;
                 }
             }
@@ -1301,6 +1358,17 @@ coreml.TensorShape = class {
     }
 };
 
+coreml.ListType = class {
+
+    constructor(elementType) {
+        this._elementType = elementType;
+    }
+
+    toString() {
+        return 'list<' + this._elementType.toString() + '>';
+    }
+};
+
 coreml.MapType = class {
 
     constructor(keyType, valueType) {
@@ -1458,17 +1526,7 @@ coreml.Utility = class {
         return result;
     }
 
-    static type(type) {
-        switch (type.type) {
-            case 'tensorType':
-                type = type.tensorType;
-                break;
-            case 'listType':
-                type = type.listType;
-                break;
-            default:
-                throw new coreml.Error("Unsupported value type '" + type.type + "'.");
-        }
+    static tensorType(type) {
         if (!coreml.Utility._dataTypes) {
             coreml.Utility._dataTypes = new Map();
             const DataType = coreml.proto.MILSpec.DataType;
@@ -1486,6 +1544,17 @@ coreml.Utility = class {
             throw new coreml.Error("Unsupported data type '" + type.dataType + "'.");
         }
         return new coreml.TensorType(dataType, new coreml.TensorShape(shape));
+    }
+
+    static valueType(type) {
+        switch (type.type) {
+            case 'tensorType':
+                return coreml.Utility.tensorType(type.tensorType);
+            case 'listType':
+                return new coreml.ListType(coreml.Utility.valueType(type.listType.type));
+            default:
+                throw new coreml.Error("Unsupported value type '" + type.type + "'.");
+        }
     }
 };
 

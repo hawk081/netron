@@ -302,10 +302,6 @@ class HTMLElement {
         return this._attributes.get(name);
     }
 
-    getBBox() {
-        return { x: 0, y: 0, width: 10, height: 10 };
-    }
-
     getElementsByClassName(name) {
         const elements = [];
         for (const node of this._childNodes) {
@@ -328,6 +324,20 @@ class HTMLElement {
 
     get classList() {
         return new DOMTokenList(this);
+    }
+
+    getBBox() {
+        return { x: 0, y: 0, width: 10, height: 10 };
+    }
+
+    getBoundingClientRect() {
+        return { left: 0, top: 0, wigth: 0, height: 0 };
+    }
+
+    scrollTo() {
+    }
+
+    focus() {
     }
 }
 
@@ -387,31 +397,23 @@ const decompress = (buffer) => {
 
 const request = (location, cookie) => {
     const options = { rejectUnauthorized: false };
-    let httpRequest = null;
     const url = new URL(location);
-    const protocol = url.protocol;
-    switch (protocol) {
-        case 'http:':
-            httpRequest = http.request(location, options);
-            break;
-        case 'https:':
-            httpRequest = https.request(location, options);
-            break;
-    }
+    const protocol = url.protocol === 'https:' ? https : http;
+    const request = protocol.request(location, options);
     return new Promise((resolve, reject) => {
-        if (!httpRequest) {
+        if (!request) {
             reject(new Error("Unknown HTTP request."));
         }
         if (cookie && cookie.length > 0) {
-            httpRequest.setHeader('Cookie', cookie);
+            request.setHeader('Cookie', cookie);
         }
-        httpRequest.on('response', (response) => {
+        request.on('response', (response) => {
             resolve(response);
         });
-        httpRequest.on('error', (error) => {
+        request.on('error', (error) => {
             reject(error);
         });
-        httpRequest.end();
+        request.end();
     });
 };
 
@@ -508,7 +510,7 @@ const download = (folder, targets, sources) => {
                 if (name !== '.') {
                     const stream = archive.entries.get(name);
                     if (!stream) {
-                        throw new Error("Entry not found '" + name + '. Archive contains entries: ' + JSON.stringify(archive.entries.map((entry) => entry.name)) + " .");
+                        throw new Error("Entry not found '" + name + '. Archive contains entries: ' + JSON.stringify(Array.from(archive.entries.keys())) + " .");
                     }
                     const target = targets.shift();
                     const buffer = stream.peek();

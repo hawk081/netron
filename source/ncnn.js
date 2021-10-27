@@ -5,6 +5,7 @@ var base = base || require('./base');
 
 // https://github.com/Tencent/ncnn/wiki/param-and-model-file-structure
 // https://github.com/Tencent/ncnn/wiki/operation-param-weight-table
+// https://github.com/Tencent/ncnn/wiki/operators
 
 ncnn.ModelFactory = class {
 
@@ -293,7 +294,7 @@ ncnn.Node = class {
                 break;
             }
             case 'InnerProduct': {
-                const activation_names = [ '', 'ReLU', 'Leaky ReLU', 'Clip', 'Sigmoid', 'Mish' ];
+                const activation_names = [ '', 'ReLU', 'Leaky ReLU', 'Clip', 'Sigmoid', 'Mish', 'HardSwish' ];
                 const activation_type = parseInt(attributes.get('9') || 0, 10);
                 if (activation_type > 0 && activation_type < activation_names.length) {
                     const layer = {
@@ -330,7 +331,7 @@ ncnn.Node = class {
             case 'ConvolutionDepthWise':
             case 'Deconvolution':
             case 'DeconvolutionDepthWise': {
-                const activation_names = [ '', 'ReLU', 'LeakyReLU', 'Clip', 'Sigmoid', 'Mish' ];
+                const activation_names = [ '', 'ReLU', 'LeakyReLU', 'Clip', 'Sigmoid', 'Mish', 'HardSwish' ];
                 const activation_type = parseInt(attributes.get('9') || 0, 10);
                 if (activation_type > 0 && activation_type < activation_names.length) {
                     const layer = {
@@ -343,7 +344,7 @@ ncnn.Node = class {
                 const kernel_w = parseInt(attributes.get('1') || 0, 10);
                 const kernel_h = parseInt(attributes.get('11') || kernel_w, 10);
                 const weight_data_size = parseInt(attributes.get('6') || 0, 10);
-                this._weight(blobReader, 'weight', [ num_output, weight_data_size / ( num_output * kernel_w * kernel_h), kernel_w, kernel_h ]);
+                this._weight(blobReader, 'weight', [ num_output, weight_data_size / ( num_output * kernel_w * kernel_h), kernel_h, kernel_w ]);
                 if (parseInt(attributes.get('5') || 0, 10) === 1) {
                     this._weight(blobReader, 'bias', [ num_output ], 'float32');
                 }
@@ -733,7 +734,7 @@ ncnn.Metadata = class {
     constructor(data) {
         this._operatorMap = new Map();
         this._map = new Map();
-        this._attributeCache = new Map();
+        this._attributes = new Map();
         if (data) {
             const items = JSON.parse(data);
             for (const item of items) {
@@ -757,18 +758,18 @@ ncnn.Metadata = class {
 
     attribute(type, name) {
         const key = type + ':' + name;
-        if (!this._attributeCache.has(key)) {
+        if (!this._attributes.has(key)) {
             const schema = this.type(type);
             if (schema && schema.attributes && schema.attributes.length > 0) {
                 for (const attribute of schema.attributes) {
-                    this._attributeCache.set(type + ':' + attribute.name, attribute);
+                    this._attributes.set(type + ':' + attribute.name, attribute);
                 }
             }
-            if (!this._attributeCache.has(key)) {
-                this._attributeCache.set(key, null);
+            if (!this._attributes.has(key)) {
+                this._attributes.set(key, null);
             }
         }
-        return this._attributeCache.get(key);
+        return this._attributes.get(key);
     }
 };
 

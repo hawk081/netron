@@ -38,6 +38,8 @@ fileAssociations:
     ext: nn
   - name: "ONNX Model"
     ext: onnx
+  - name: "DaVinci OM Model"
+    ext: om
   - name: "Protocol Buffer"
     ext: pb
   - name: "Text Protocol Buffer"
@@ -51,6 +53,8 @@ fileAssociations:
   - name: "PyTorch Model"
     ext: pth
   - name: "PyTorch Model"
+    ext: ptl
+  - name: "PyTorch Model"
     ext: pt
   - name: "Torch Model"
     ext: t7
@@ -60,17 +64,19 @@ fileAssociations:
     ext: tfl
   - name: "Tengine"
     ext: tmfile
-  - name: "UFF Model"
-    ext: uff
   - name: "PaddlePaddle"
     ext: paddle
   - name: "PaddlePaddle"
     ext: pdmodel
   - name: "PaddlePaddle"
     ext: pdparams
+  - name: "Paddle Lite"
+    ext: nb
   - name: "RKNN"
     ext: rknn
-  - name: "Vitis-AI xmodel"
+  - name: "UFF Model"
+    ext: uff
+  - name: "xmodel"
     ext: xmodel
 afterSign: "./publish/notarize.js"
 publish:
@@ -117,3 +123,4 @@ snap:
   - provider: snapStore
     channels:
     - stable
+    repo: electron-builder#6327

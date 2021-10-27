@@ -1,7 +1,7 @@
 /* jshint esversion: 6 */
 
 var grapher = grapher || {};
-var dagre = dagre || require('dagre');
+var dagre = dagre || require('./dagre');
 
 grapher.Graph = class {
 
@@ -48,7 +48,7 @@ grapher.Graph = class {
             throw new Error("Cannot set parent in a non-compound graph");
         }
         parent += "";
-        for (var ancestor = parent; ancestor; ancestor = this.parent(ancestor)) {
+        for (let ancestor = parent; ancestor; ancestor = this.parent(ancestor)) {
             if (ancestor === node) {
                 throw new Error("Setting " + parent + " as parent of " + node + " would create a cycle");
             }
@@ -498,8 +498,8 @@ grapher.Node.List = class {
         }
         this._height += 3;
 
-        if (this._width < 100) {
-            this._width = 100;
+        if (this._width < 75) {
+            this._width = 75;
         }
     }
 

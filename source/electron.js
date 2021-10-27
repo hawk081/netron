@@ -49,8 +49,8 @@ host.ElectronHost = class {
         return 'Electron';
     }
 
-    get browser() {
-        return false;
+    get agent() {
+        return 'any';
     }
 
     initialize(view) {
@@ -80,7 +80,7 @@ host.ElectronHost = class {
                 accept();
             }
             else {
-                this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 'utf-8', 2000).then((text) => {
+                this._request('https://ipinfo.io/json', { 'Content-Type': 'application/json' }, 2000).then((text) => {
                     try {
                         const json = JSON.parse(text);
                         const countries = ['AT', 'BE', 'BG', 'HR', 'CZ', 'CY', 'DK', 'EE', 'FI', 'FR', 'DE', 'EL', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 'PT', 'SK', 'ES', 'SE', 'GB', 'UK', 'GR', 'EU', 'RO'];
@@ -103,8 +103,6 @@ host.ElectronHost = class {
     }
 
     start() {
-        this._view.show('welcome');
-
         if (this._queue) {
             const queue = this._queue;
             delete this._queue;
@@ -194,6 +192,8 @@ host.ElectronHost = class {
             }
             return false;
         });
+
+        this._view.show('welcome');
     }
 
     environment(name) {
@@ -364,7 +364,7 @@ host.ElectronHost = class {
         if (stat.isFile()) {
             const dirname = path.dirname(location);
             return this.request(basename, null, dirname).then((stream) => {
-                return new host.ElectronHost.ElectonContext(this, dirname, basename, stream);
+                return new host.ElectronHost.ElectronContext(this, dirname, basename, stream);
             });
         }
         else if (stat.isDirectory()) {
@@ -384,7 +384,7 @@ host.ElectronHost = class {
                 }
             };
             walk(location);
-            return Promise.resolve(new host.ElectronHost.ElectonContext(this, location, basename, null, entries));
+            return Promise.resolve(new host.ElectronHost.ElectronContext(this, location, basename, null, entries));
         }
         throw new Error("Unsupported path stat '" + JSON.stringify(stat) + "'.");
     }
@@ -421,17 +421,20 @@ host.ElectronHost = class {
         }
     }
 
-    _request(url, headers, encoding, timeout) {
+    _request(location, headers, timeout) {
         return new Promise((resolve, reject) => {
-            const httpModule = url.split(':').shift() === 'https' ? https : http;
-            const options = {
-                headers: headers
-            };
-            const request = httpModule.request(url, options, (response) => {
+            const url = new URL(location);
+            const protocol = url.protocol === 'https:' ? https : http;
+            const options = {};
+            options.headers = headers;
+            if (timeout) {
+                options.timeout = timeout;
+            }
+            const request = protocol.request(location, options, (response) => {
                 if (response.statusCode !== 200) {
-                    const err = new Error("The web request failed with status code " + response.statusCode + " at '" + url + "'.");
+                    const err = new Error("The web request failed with status code " + response.statusCode + " at '" + location + "'.");
                     err.type = 'error';
-                    err.url = url;
+                    err.url = location;
                     err.status = response.statusCode;
                     reject(err);
                 }
@@ -451,15 +454,13 @@ host.ElectronHost = class {
             request.on("error", (err) => {
                 reject(err);
             });
-            if (timeout) {
-                request.setTimeout(timeout, () => {
-                    request.destroy();
-                    const err = new Error("The web request timed out at '" + url + "'.");
-                    err.type = 'timeout';
-                    err.url = url;
-                    reject(err);
-                });
-            }
+            request.on("timeout", () => {
+                request.destroy();
+                const error = new Error("The web request timed out at '" + location + "'.");
+                error.type = 'timeout';
+                error.url = url;
+                reject(error);
+            });
             request.end();
         });
     }
@@ -701,7 +702,7 @@ host.ElectronHost.FileStream = class {
     }
 };
 
-host.ElectronHost.ElectonContext = class {
+host.ElectronHost.ElectronContext = class {
 
     constructor(host, folder, identifier, stream, entries) {
         this._host = host;
